@@ -1,0 +1,118 @@
+bootstrap:
+  resamples: 1000
+  seed: 42
+chat_model: gapgpt-gpt-4o-mini
+disable_fewshots: false
+fewshot_mode: skeleton
+icrl:
+  iterations: 1
+  keyword_scores:
+    AND: 1
+    ASC: 1
+    AVG: 3
+    BETWEEN: 2
+    CASE: 3
+    COUNT: 3
+    DESC: 1
+    DISTINCT: 2
+    ELSE: 2
+    END: 1
+    FROM: 1
+    GROUP BY: 3
+    HAVING: 3
+    IN: 2
+    INNER JOIN: 3
+    JOIN: 2
+    LEFT JOIN: 3
+    LIKE: 2
+    LIMIT: 1
+    MAX: 3
+    MIN: 3
+    NOT: 1
+    'ON': 2
+    OR: 1
+    ORDER BY: 2
+    RIGHT JOIN: 3
+    SELECT: 1
+    SUM: 3
+    THEN: 2
+    WHEN: 2
+    WHERE: 2
+  max_attempts: 20
+  max_traversals: 8
+  min_examples: 5
+  on_upload: true
+  reward_split: none
+  row_limit: 100
+  sql_timeout_seconds: 30
+k: 5
+k_cap: 5
+limit: 0
+mixed_band_cap: 3
+model: rayen-deepseek-v4-flash
+paths:
+  config: /var/www/aras-ai-data/configs/repro.yaml
+  dev: /var/www/aras-ai-data/data/spider/spider_data/dev.json
+  items: /var/www/aras-ai-data/data/spider/spider_data/dev.json
+  nltk_data: /home/aras-lab/nltk_data
+  out: /var/www/aras-ai-data/benchmark/eval_spider_service_new.jsonl
+  results_dir: /var/www/aras-ai-data/results
+  schema_cache: /home/aras-lab/my-project/schema_cache.json
+  spider_db_dir: /var/www/aras-ai-data/data/spider/spider_data/database
+  tables: /var/www/aras-ai-data/data/spider/spider_data/tables.json
+  train: /var/www/aras-ai-data/data/spider/spider_data/train_spider.json
+pool:
+  base: 15
+  max_total: 100
+  min_total: 15
+  no_join_easy: 5
+  no_join_hard: 0
+  no_join_medium: 10
+  per_extra_table: 4
+  per_join_pair: 6
+  reserved_per_band: 5
+pool_build:
+  excluded_databases:
+  - formula_1
+  execution_timeout_seconds: 30
+  generate_sql: true
+  paths:
+    dev_json: /var/www/aras-ai-data/data/spider/spider_data/dev.json
+    output: /var/www/aras-ai-data/benchmark/fewshot_pool_train.json
+    sqlite_dir: /var/www/aras-ai-data/data/spider/spider_data/database
+    tables_json: /var/www/aras-ai-data/data/spider/spider_data/tables.json
+    train_json: /var/www/aras-ai-data/data/spider/spider_data/train_spider.json
+  per_database_cap: 10
+  quotas:
+    easy: 160
+    hard: 160
+    medium: 320
+  seed: 42
+  shape_cap: 1
+  shape_cap_fallback: 3
+prices:
+  usd_per_mtok_in: 0
+  usd_per_mtok_out: 0
+seed: 42
+selection_strategy: full
+similarity:
+  feature_weights:
+    agg_overlap: 1
+    cte: 1
+    group_by: 1
+    having: 1
+    join_count: 2
+    subquery: 1
+    table_overlap: 1
+    where: 1
+  function: skeleton_feature
+  thresholds: {}
+temperature:
+  eval: 0
+  grounding: 0.2
+  icrl: 0.2
+  planner: 0.1
+  sql: 0.1
+  translation: 0.2
+use_evidence: true
+workers: 3

@@ -1,0 +1,35 @@
+# secrets
+.env
+
+# local env
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# test / type / lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# logs and junk
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+.ipynb_checkpoints/
+
+# generated eval outputs (keep scripts; ignore run artifacts)
+results/
+logs/
+outputs/
+runs/
+eval_results/
+
+# datasets not part of this slice
+data/spider/
