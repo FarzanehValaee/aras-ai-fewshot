@@ -5,6 +5,30 @@ from __future__ import annotations
 import json
 import re
 
+# Shared Text-to-SQL rules for Spider/BIRD-style English benchmarks.
+SQL_GENERATION_RULES = (
+    "Write the SQL for an English question. "
+    "Keep SQL string literals and filter values in the database's original English "
+    "(never translate values such as 'France' or 'yes'). "
+    "Select ONLY the exact columns requested by the question. "
+    "Do not add extra columns, and do not return ID columns when names/titles "
+    "are asked (and vice versa). "
+    "Do not fabricate placeholder columns (e.g., NULL AS ...) unless explicitly required. "
+    "Do not add LIMIT unless the question explicitly asks for a limited set "
+    "(for example top 5, most 3, highest one). "
+    "Use table names exactly as they appear in the schema; never invent prefixes "
+    "such as upload_aras_ai_app_."
+)
+
+_PRODUCT_TABLE_PREFIX = re.compile(r"\bupload_aras_ai_app_", re.IGNORECASE)
+_TRAILING_LIMIT_100 = re.compile(r"\s+LIMIT\s+100\s*;?\s*$", re.IGNORECASE)
+_EXPLICIT_LIMIT_QUESTION = re.compile(
+    r"\b(?:top|bottom|first|last|highest|lowest|most|fewest)\s+(?:\d+|one)\b"
+    r"|\blimit\s+\d+\b"
+    r"|\b(?:only|just)\s+\d+\b",
+    re.IGNORECASE,
+)
+
 _FORBIDDEN_KEYWORDS = re.compile(
     r"\b(DELETE|UPDATE|INSERT|DROP|ALTER|TRUNCATE|CREATE|GRANT|REVOKE|EXEC|EXECUTE)\b",
     re.IGNORECASE,
@@ -154,29 +178,61 @@ def validate_sql(
     return True, ""
 
 
+def question_requests_limit(question: str) -> bool:
+    """True when the user asked for a bounded result (top-N / highest one)."""
+    return bool(_EXPLICIT_LIMIT_QUESTION.search(question or ""))
+
+
+def strip_product_table_prefix(sql: str) -> str:
+    """Drop local upload table prefixes that do not exist on Spider/BIRD sqlite."""
+    return _PRODUCT_TABLE_PREFIX.sub("", sql or "")
+
+
+def strip_default_limit_100(sql: str) -> str:
+    """Remove a trailing LIMIT 100 left over from product row-cap injection."""
+    return _TRAILING_LIMIT_100.sub("", sql or "").rstrip()
+
+
 def enforce_row_limit(query: str, *, dialect: str, limit: int) -> str:
+    """Append a row cap only when ``limit`` is a positive integer.
+
+    ``limit <= 0`` disables injection so Spider/BIRD execution can return the
+    full result set. Do not treat 100 as an implicit default.
+    """
     cleaned = _normalize_sql_text(query)
     if not cleaned:
+        return cleaned
+    try:
+        cap = int(limit)
+    except (TypeError, ValueError):
+        cap = 0
+    if cap <= 0:
         return cleaned
     if _COUNT_STAR.match(cleaned):
         return cleaned
     if dialect == "sqlserver":
         if _HAS_TOP.search(cleaned):
             return cleaned
-        return re.sub(r"(?i)^\s*SELECT\b", f"SELECT TOP {int(limit)} ", cleaned, count=1)
+        return re.sub(r"(?i)^\s*SELECT\b", f"SELECT TOP {cap} ", cleaned, count=1)
     if _HAS_LIMIT.search(cleaned):
         return cleaned
-    return f"{cleaned} LIMIT {int(limit)}"
+    return f"{cleaned} LIMIT {cap}"
 
 
 def guard_sql_query(
     query: str,
     *,
     dialect: str,
-    limit: int,
+    limit: int = 0,
     allowed_tables: set[str] | None = None,
+    sqlite_mode: bool = False,
+    question: str = "",
 ) -> tuple[str, str | None]:
     normalized = sanitize_agent_sql_input(query)
+    if sqlite_mode:
+        normalized = strip_product_table_prefix(normalized)
+        if not question_requests_limit(question):
+            normalized = strip_default_limit_100(normalized)
     ok, err = validate_sql(
         normalized, dialect=dialect, allowed_tables=allowed_tables
     )

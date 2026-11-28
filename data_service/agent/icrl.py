@@ -6,7 +6,67 @@ del _CODE, marshal
 
 import sys
 
+from data_service.agent.sql_guard import SQL_GENERATION_RULES, guard_sql_query
 from repro_config import load as load_repro_config
+
+# Marshaled `_generation_prompt` still asks for "natural Persian". Rewrite at
+# call time so Spider/BIRD generation stays English without patching bytecode.
+_MARSHALED_GENERATION_PROMPT = globals().get("_generation_prompt")
+
+
+def _english_generation_prompt(*args, **kwargs):
+    if not callable(_MARSHALED_GENERATION_PROMPT):
+        raise RuntimeError("marshaled _generation_prompt is unavailable")
+    text = str(_MARSHALED_GENERATION_PROMPT(*args, **kwargs) or "")
+    text = text.replace("question must be natural Persian.", "question must be natural English.")
+    text = text.replace("natural Persian.", "natural English.")
+    text = text.replace("natural Persian", "natural English")
+    if SQL_GENERATION_RULES not in text:
+        marker = "Return ONLY JSON with keys question and sql."
+        if marker in text:
+            text = text.replace(marker, marker + "\n" + SQL_GENERATION_RULES, 1)
+        else:
+            text = SQL_GENERATION_RULES + "\n" + text
+    return text
+
+
+if callable(_MARSHALED_GENERATION_PROMPT):
+    _generation_prompt = _english_generation_prompt
+
+_MARSHALED_GUARD_CANDIDATE = globals().get("guard_candidate_sql")
+
+
+def _research_guard_candidate_sql(
+    sql,
+    *,
+    dialect="mysql",
+    limit=0,
+    allowed_tables=None,
+):
+    """Bypass the marshaled product default of LIMIT 100."""
+    try:
+        cap = int(limit)
+    except (TypeError, ValueError):
+        cap = 0
+    if cap == 100:
+        cap = 0
+    return guard_sql_query(
+        sql,
+        dialect=dialect,
+        limit=cap,
+        allowed_tables=allowed_tables,
+        sqlite_mode=str(dialect).lower() in {"sqlite", "sqlite3"},
+        question="",
+    )
+
+
+if callable(_MARSHALED_GUARD_CANDIDATE):
+    guard_candidate_sql = _research_guard_candidate_sql
+
+if callable(globals().get("quote_mysql_schema_idents")):
+    quote_mysql_schema_idents.__doc__ = (
+        "Backtick non-ASCII or spaced identifiers the LLM left unquoted."
+    )
 
 _REPRO = load_repro_config()
 _KEYWORD_SCORES = tuple(

@@ -21,7 +21,12 @@ from data_service.agent.icrl import retrieve_similar
 from data_service.agent.planner import plan_question
 from data_service.agent.ranking_intent import question_rank_direction, wants_ranking
 from data_service.agent.schema_slice import slice_schema
-from data_service.agent.sql_guard import _extract_from_tables, guard_sql_query
+from data_service.agent.sql_guard import (
+    SQL_GENERATION_RULES,
+    _extract_from_tables,
+    guard_sql_query,
+    strip_default_limit_100,
+)
 from data_service.clients.base import DownstreamError
 from data_service.clients.router import RouterClient
 from data_service.models import ConnectionStatus, DataSource, DataSourceType, FewShotExample
@@ -156,9 +161,8 @@ def _sql_generation_prompt(
         "Generate ONE read-only SQL query (SELECT or WITH…SELECT only). "
         "Never use INSERT/UPDATE/DELETE/DROP/ALTER/TRUNCATE/CREATE/GRANT/REVOKE. "
         f"Dialect: {dialect}.\n"
+        f"{SQL_GENERATION_RULES}\n"
         f"{ranking_hint}"
-        "Keep SQL string literals exactly as they appear in the schema or question; "
-        "do not translate filter values.\n"
         "Return ONLY the SQL, no explanation.\n\n"
         f"Plan:\n{plan_text or '(none)'}\n\n"
         f"Schema:\n{schema}\n\n"
@@ -254,7 +258,8 @@ def _format_fewshot_block(examples: list[FewShotExample]) -> tuple[str, int]:
     lines = ["Retrieved few-shot examples (follow their SQL style):"]
     for i, ex in enumerate(examples, start=1):
         lines.append(f"{i}. Q: {(ex.user_question or '').strip()}")
-        lines.append(f"   SQL: {(ex.ideal_sql or '').strip()}")
+        sql = strip_default_limit_100((ex.ideal_sql or "").strip())
+        lines.append(f"   SQL: {sql}")
     return ("\n".join(lines) + "\n\n", len(examples))
 
 
@@ -327,6 +332,7 @@ def _sql_repair_prompt(
         "Produce a corrected ONE read-only SQL query (SELECT or WITH…SELECT only). "
         "Never use INSERT/UPDATE/DELETE/DROP/ALTER/TRUNCATE/CREATE/GRANT/REVOKE. "
         f"Dialect: {dialect}.\n"
+        f"{SQL_GENERATION_RULES}\n"
         "Fix the exact execution error. Stay faithful to the user question and schema. "
         "Output ONLY the corrected SQL inside a markdown code block "
         "(```sql ... ```). No explanation.\n\n"
@@ -362,6 +368,30 @@ def _repair_sql(
             max_tokens=800,
         )
     )
+
+
+def _is_sqlite_source(source: DataSource, db_conf: dict | None = None) -> bool:
+    conf = db_conf if db_conf is not None else source_to_db_config(source)
+    if conf.get("_sqlite_path"):
+        return True
+    engine = str(getattr(source, "db_engine", "") or conf.get("dialect") or "").lower()
+    return "sqlite" in engine
+
+
+def _effective_row_limit(source: DataSource, db_conf: dict, options: dict) -> int:
+    """Never inject a default LIMIT 100. Sqlite/benchmark runs stay uncapped."""
+    if _is_sqlite_source(source, db_conf):
+        return 0
+    override = options.get("row_limit")
+    if override is not None:
+        try:
+            return max(0, int(override))
+        except (TypeError, ValueError):
+            return 0
+    try:
+        return max(0, int(getattr(settings, "SQL_ROW_LIMIT", 0) or 0))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _known_table_count(source: DataSource) -> int | None:
@@ -469,6 +499,8 @@ def _run_query(
 
     dialect = normalize_dialect(source.db_engine or "mysql")
     db_conf = source_to_db_config(source)
+    sqlite_mode = _is_sqlite_source(source, db_conf)
+    row_limit = _effective_row_limit(source, db_conf, options)
     title = safe_label(getattr(source, "title", ""))
     if title:
         notify(progress, "data_source", "completed", detail=title)
@@ -604,8 +636,10 @@ def _run_query(
     guarded, err = guard_sql_query(
         sql_raw,
         dialect=dialect,
-        limit=settings.SQL_ROW_LIMIT,
+        limit=row_limit,
         allowed_tables=_allowed_tables(source),
+        sqlite_mode=sqlite_mode,
+        question=q,
     )
     queries: list[dict[str, Any]] = []
     if err:
@@ -710,8 +744,10 @@ def _run_query(
         repaired, repair_err = guard_sql_query(
             repaired_raw,
             dialect=dialect,
-            limit=settings.SQL_ROW_LIMIT,
+            limit=row_limit,
             allowed_tables=_allowed_tables(source),
+            sqlite_mode=sqlite_mode,
+            question=q,
         )
         if repair_err:
             notify(progress, "sql_repair", "failed")

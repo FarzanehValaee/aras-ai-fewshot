@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from data_service.agent.sql_guard import SQL_GENERATION_RULES
 from data_service.clients.base import DownstreamError
 from data_service.clients.router import RouterClient
 
@@ -89,7 +90,7 @@ def plan_question(
         "Fix obvious typos/metric names using the schema. "
         "Do not invent tables/columns not in the schema. "
         "Keep resolved_question in natural English. "
-        "Do not translate SQL filter values. "
+        f"{SQL_GENERATION_RULES} "
         "Do not replace the user's words with english_name identifiers; "
         "record any column mapping in assumptions or plan_steps.\n\n"
         f"Schema:\n{schema[:5000]}\n\n"

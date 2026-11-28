@@ -97,7 +97,7 @@ def build_chart_spec_from_table(
         "value_format": "number",
         "download_filename": f"data_{category}.csv",
         "columns": [
-            {"key": "label", "label_fa": name_label},
+            {"key": "label", "label_fa": name_label},  # legacy key; value is English
             {"key": "value", "label_fa": value_label},
         ],
     }

@@ -83,6 +83,7 @@ def _resolve(raw: dict[str, Any]) -> dict[str, Any]:
     paths = dict(_need(raw, "paths"))
     bootstrap = dict(_need(raw, "bootstrap"))
     pool_build = _resolve_pool_build(raw)
+    baseline_clean = dict(raw.get("baseline_clean") or {})
     weights = dict(_need(similarity, "feature_weights"))
     scores = dict(_need(icrl, "keyword_scores"))
 
@@ -102,7 +103,16 @@ def _resolve(raw: dict[str, Any]) -> dict[str, Any]:
     paths["train"] = _env_str("SPIDER_TRAIN", paths.get("train") or "")
     paths["dev"] = _env_str("SPIDER_DEV", paths.get("dev") or paths["items"])
     paths["tables"] = _env_str("SPIDER_TABLES", paths.get("tables") or "")
-    paths["pool"] = _env_str("SPIDER_POOL", paths.get("pool") or "")
+    default_pool = (
+        paths.get("pool")
+        or baseline_clean.get("pool")
+        or "benchmark/fewshot_pool_strict_en.json"
+    )
+    paths["pool"] = _env_str("SPIDER_POOL", default_pool)
+    if not str(paths.get("results_dir") or "").strip():
+        paths["results_dir"] = str(
+            baseline_clean.get("results_dir") or "results/baseline_clean"
+        )
 
     prices["usd_per_mtok_in"] = _env_float(
         "SPIDER_EVAL_USD_PER_MTOK_IN", prices["usd_per_mtok_in"]
@@ -180,6 +190,20 @@ def _resolve(raw: dict[str, Any]) -> dict[str, Any]:
         },
         "paths": {key: str(value) for key, value in paths.items()},
         "pool_build": pool_build,
+        "baseline_clean": {
+            "pool": str(
+                baseline_clean.get("pool")
+                or paths.get("pool")
+                or "benchmark/fewshot_pool_strict_en.json"
+            ),
+            "results_dir": str(
+                baseline_clean.get("results_dir") or "results/baseline_clean"
+            ),
+            "row_limit": _env_int(
+                "SQL_ROW_LIMIT",
+                int(baseline_clean.get("row_limit", icrl.get("row_limit", 0))),
+            ),
+        },
     }
 
 

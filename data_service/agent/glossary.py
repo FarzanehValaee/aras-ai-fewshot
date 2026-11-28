@@ -1,8 +1,9 @@
 """Column labels and units for any data source, read from its column catalog.
 
-``english_name`` is the SQL identifier. ``persian_name`` and ``unit`` are the
-display label and unit the user sees. A column with no distinct label and no
-unit is left unchanged, so the same code works for every database.
+``english_name`` is the SQL identifier. ``persian_name`` is a legacy JSON key
+for an optional display label (often equal to the English identifier).
+``unit`` is the unit shown next to numbers. A column with no distinct label
+and no unit is left unchanged, so the same code works for every database.
 """
 
 from __future__ import annotations
@@ -178,7 +179,7 @@ class ColumnView:
 
     @staticmethod
     def apply_labels(catalog: Any, edits: Any) -> dict:
-        """Write ``persian_name`` and ``unit`` onto matching columns. SQL names stay."""
+        """Write display label (``persian_name`` key) and ``unit``. SQL names stay."""
         if not isinstance(edits, dict):
             raise ValueError("column_catalog must be an object")
         updated = _copy_catalog(catalog)
@@ -247,8 +248,8 @@ def _normalize_entry(column: Any) -> dict | None:
 
 def _label_and_unit(column: dict) -> tuple[str, str]:
     sql = column["english_name"]
-    persian = column["persian_name"]
-    label = persian if persian and persian != sql else sql
+    display = column["persian_name"]
+    label = display if display and display != sql else sql
     return label, column["unit"]
 
 

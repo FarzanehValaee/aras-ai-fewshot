@@ -43,8 +43,14 @@ icrl:
   min_examples: 5
   on_upload: true
   reward_split: none
-  row_limit: 100
+  row_limit: 0
   sql_timeout_seconds: 30
+# English Spider/BIRD baseline (Phase 1). Smoke runs write *_smoke20 artifacts
+# beside these filenames so a full run is never overwritten.
+baseline_clean:
+  pool: benchmark/fewshot_pool_strict_en.json
+  results_dir: results/baseline_clean
+  row_limit: 0
 k: 5
 k_cap: 5
 limit: 0
@@ -56,7 +62,8 @@ paths:
   items: /var/www/aras-ai-data/data/spider/spider_data/dev.json
   nltk_data: /home/aras-lab/nltk_data
   out: /var/www/aras-ai-data/benchmark/eval_spider_service_new.jsonl
-  results_dir: /var/www/aras-ai-data/results
+  pool: benchmark/fewshot_pool_strict_en.json
+  results_dir: results/baseline_clean
   schema_cache: /home/aras-lab/my-project/schema_cache.json
   spider_db_dir: /var/www/aras-ai-data/data/spider/spider_data/database
   tables: /var/www/aras-ai-data/data/spider/spider_data/tables.json

@@ -38,6 +38,7 @@ from data_service.agent.icrl import (
     tables_from_meta,
 )
 from data_service.agent.pipeline import _allowed_tables
+from data_service.agent.sql_guard import SQL_GENERATION_RULES
 from data_service.clients.router import RouterClient
 from data_service.models import DataSource, FewShotExample
 from data_service.services.connections import execute_readonly_sql, source_to_db_config
@@ -556,7 +557,7 @@ def _fill_band(
                 part
                 for part in (
                     "The question must be natural English. "
-                    "Keep SQL filter literals untranslated.",
+                    + SQL_GENERATION_RULES,
                     profile_block(trav, profiles),
                     _diversity_extra(
                         style,
@@ -717,7 +718,8 @@ def bootstrap_fewshots_for_source(
 
     dialect = normalize_dialect(source.db_engine or "mysql")
     iterations = int(getattr(settings, "FEWSHOT_ICRL_ITERATIONS", 1))
-    row_limit = int(getattr(settings, "SQL_ROW_LIMIT", 100))
+    # 0 disables LIMIT injection so synthetic few-shots do not teach LIMIT 100.
+    row_limit = 0
     table_count, pair_count = schema_join_stats(tables)
     quota = fewshot_quota(table_count=table_count, pair_count=pair_count)
     max_trav = max(

@@ -148,9 +148,9 @@ def slice_schema(
 
 
 class _Column:
-    def __init__(self, sql: str, persian: str, source: str, unit: str):
+    def __init__(self, sql: str, display_label: str, source: str, unit: str):
         self.sql = sql
-        self.persian = persian
+        self.display_label = display_label
         self.source = source
         self.unit = unit
         self.score = 0
@@ -173,7 +173,7 @@ def _tokens(text: str) -> set[str]:
 
 
 def _column_tokens(column: _Column) -> set[str]:
-    return _tokens(" ".join((column.sql, column.persian, column.source, column.unit)))
+    return _tokens(" ".join((column.sql, column.display_label, column.source, column.unit)))
 
 
 def _catalog_tables(catalog: Any) -> list[tuple[str, list[_Column]]]:
@@ -272,12 +272,12 @@ def _glossary(tables: list[tuple[str, list[_Column]]]) -> str:
 
 def _glossary_line(table: str, column: _Column) -> str:
     sql = column.sql
-    persian = column.persian if column.persian and column.persian != sql else ""
+    display = column.display_label if column.display_label and column.display_label != sql else ""
     source = column.source if column.source and column.source != sql else ""
-    if persian and source and persian != source:
-        label = f"{persian} ({source})"
+    if display and source and display != source:
+        label = f"{display} ({source})"
     else:
-        label = persian or source
+        label = display or source
     name = f"`{table}`.`{sql}`"
     if label and column.unit:
         return f"{name} = {label}, unit: {column.unit}"
